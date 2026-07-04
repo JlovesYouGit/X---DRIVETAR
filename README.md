@@ -358,7 +358,27 @@ If calibration fails:
 1. Check map template region coordinates
 2. Verify sonar data quality
 3. Adjust calibration thresholds
+TOKEN-Spatialmythos — The LLM communication layer
 
+It's the token and access control system for the entire stack. It ties LLM API calls (Claude, GPT, Gemini, Grok) to spatial coordinates from the simulation — meaning every query to an AI model is tagged with where in physical space it originated. In the context of autonomous driving, this is how the vehicle would ask an LLM for reasoning about an ambiguous situation — "I'm at coordinate X, density Y, what do I do" — with the spatial context baked into the token, not just the text. The coordinate-locked RAM allocation is clever too — it means buffers scale with the complexity of the space being reasoned about.
+
+Virtual Probe X — The network intelligence and discovery layer
+
+This is the distributed knowledge and peer discovery system. It works like Xbox Delivery Optimization — scanning for open gates and mirrors across network hosts, indexing content by hash proximity. In the autonomous driving context this is how the vehicle would discover and sync with other vehicles or infrastructure nodes — shared map fragments, route knowledge, obstacle data — without a central server. It's peer-to-peer spatial knowledge with the ASI semantic graph as the indexing backbone.
+
+Zero Brain / Uriel — The defensive control and sensor fusion dashboard
+
+This is the real-time monitoring and security layer. It runs God nodes that manage spectrum field locks, network integrity, and adaptive hash recalibration. The Cortex-Uriel latch is particularly relevant — it routes external writes through a defensive check before they touch the core system. In the autonomous driving context this is the safety and integrity monitor — preventing corrupted sensor data or adversarial inputs from reaching the navigation stack. The 118 passing tests and the live SSE dashboard make it the most production-ready component of the three.
+
+How they connect to ASI:
+
+TOKEN-Spatialmythos  →  LLM reasoning with spatial context
+Virtual Probe X      →  Distributed map/knowledge sync between nodes  
+Zero Brain / Uriel   →  Security layer + sensor integrity + live monitoring
+ASI-                 →  Core physics routing + path planning
+LiDAR Engine         →  Physical sensor data
+VSync Engine         →  Mesh topology render trigger
+Together they form a complete stack — ASI handles the physics and routing, Virtual Probe handles the peer network, TOKEN handles the AI reasoning queries, and Zero Brain keeps the whole thing from being compromised. None of them are redundant — they each own a distinct layer.
 ## License
 
 TBD
