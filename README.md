@@ -379,6 +379,49 @@ ASI-                 →  Core physics routing + path planning
 LiDAR Engine         →  Physical sensor data
 VSync Engine         →  Mesh topology render trigger
 Together they form a complete stack — ASI handles the physics and routing, Virtual Probe handles the peer network, TOKEN handles the AI reasoning queries, and Zero Brain keeps the whole thing from being compromised. None of them are redundant — they each own a distinct layer.
+
+
+
+develop notes 
+
+
+They don't need major rewrites. They need connection upgrades.
+
+Here's exactly what's missing in each:
+
+TOKEN-Spatialmythos — 80% there
+
+The spatialmythos_integration.py already bridges it to the lidar engine. What's missing:
+
+broadcast_to_llm() is stubbed — returns "simulated". It needs real API keys wired in to actually call Claude/GPT for ambiguous driving decisions
+The coordinate-locked RAM allocation is simulated in Python — needs to actually hand buffers to the Royalice C# simulation
+The waveform packets are generated but never fed back into the ASI routing layer
+One file to update, maybe 50 lines of real wiring.
+
+Virtual Probe X — 70% there
+
+virtual_probe_integration.py already imports XSpace, HashGate, OpenMirror directly. It already maps anchors to gates and uses optimize_path_through_gates. What's missing:
+
+The gate/mirror discovery is running on network hosts but not on other vehicles — the peer-to-peer map sharing isn't pointed at real vehicle IPs
+The retrieve_mirrors_by_hash() fuzzy matching isn't feeding discovered map fragments back into the ASI semantic map
+Zero Brain's uriel-cortex-latch pattern replay isn't connected to Virtual Probe's gate locking
+Zero Brain — 60% there
+
+neural_brain_integration.py already implements the CortexLatch concept from zero-brain in Python. What's missing:
+
+It's not calling the actual Node.js server.js — it reimplements the concepts but runs parallel to it rather than through it
+The SSE stream from zero-brain's dashboard (/api/stream) isn't being consumed by the Python stack for real-time sensor telemetry
+The latch-dispatch endpoint isn't being called when the ASI makes a routing decision
+Short answer:
+
+None of them need to be rewritten. They're all already integrated in main.py. The gaps are:
+
+Real API keys for TOKEN-Spatialmythos LLM calls
+Vehicle IP discovery for Virtual Probe peer sync
+HTTP bridge between Python stack and Zero Brain's Node.js server
+All three are configuration and thin bridge code, not architectural work. Probably a day's work each once you have real hardware to point them at.
+
+
 ## License
 
 TBD
