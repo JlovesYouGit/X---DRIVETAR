@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Royalice Live Visualizer</title>
+  <style>
+    html, body { margin:0; height:100%; background:#05070a; overflow:hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #hud { position:fixed; top:10px; left:10px; color:#d7e3ff; background:rgba(0,0,0,.35); padding:10px 12px; border-radius:10px; backdrop-filter: blur(6px); }
+    #hud .row { display:flex; gap:10px; font-size:12px; line-height:1.4; }
+    #hud b { color:#fff; }
+    #btns { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+    button { cursor:pointer; background:#1a2545; color:#d7e3ff; border:1px solid rgba(140,170,255,.25); border-radius:8px; padding:6px 10px; }
+    button:hover { background:#23345f; }
+    canvas { display:block; width:100%; height:100%; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div class="row"><b>Royalice Live Visualizer</b></div>
+    <div class="row">Point count: <span id="count">0</span></div>
+    <div class="row">Locked: <span id="locked">0</span></div>
+    <div class="row">Frame: <span id="frame">0</span></div>
+    <div id="btns">
+      <button id="pause">Pause</button>
+      <button id="clear">Clear</button>
+    </div>
+    <div style="margin-top:8px; font-size:11px; opacity:.9;">
+      Start the simulator, then pipe its stdout into: <br/>
+      <code>node ingest.js</code> (this folder).
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+    // Basic camera / scene
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x05070a);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 1e9);
+    camera.position.set(0, 1.2, 2.4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Points geometry (positions updated each frame)
+    const maxPoints = 20000;
+    const positions = new Float32Array(maxPoints * 3);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setDrawRange(0, 0);
+
+    const material = new THREE.PointsMaterial({
+      size: 0.02,
+      color: 0x8ab4ff,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false
+    });
+
+    const points = new THREE.Points(geometry, material);
+    scene.add(points);
+
+    // Lighting (for optional future meshes)
+    const light = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(light);
+
+    // HUD
+    const elCount = document.getElementById('count');
+    const elLocked = document.getElementById('locked');
+    const elFrame = document.getElementById('frame');
+    const pauseBtn = document.getElementById('pause');
+    const clearBtn = document.getElementById('clear');
+
+    let paused = false;
+    let frame = 0;
+
+    pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; };
+    clearBtn.onclick = () => {
+      geometry.setDrawRange(0, 0);
+      elCount.textContent = '0';
+      elLocked.textContent = '0';
+    };
+
+    // SSE feed (no external Node deps)
+    const es = new EventSource('http://localhost:8787/events');
+    es.onmessage = (ev) => {
+      if (paused) return;
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+      if (!msg || !Array.isArray(msg.particles)) return;
+
+      const pts = msg.particles;
+      const n = Math.min(pts.length, maxPoints);
+      // Coordinate scale: simulator units are huge; scale to a viewable range
+      const scale = msg.scale ?? 1e-6;
+
+      for (let i = 0; i < n; i++) {
+        const p = pts[i];
+        positions[i*3+0] = p.x * scale;
+        positions[i*3+1] = p.y * scale;
+        positions[i*3+2] = p.z * scale;
+      }
+      geometry.setDrawRange(0, n);
+      points.geometry.attributes.position.needsUpdate = true;
+
+      elCount.textContent = String(n);
+      elLocked.textContent = String(msg.locked ?? 0);
+
+      frame++;
+      elFrame.textContent = String(frame);
+    };
+
+
+    // Simple orbit / drag
+    let isDown = false;
+    let lastX = 0, lastY = 0;
+    let yaw = 0, pitch = -0.2;
+
+    renderer.domElement.addEventListener('pointerdown', (e) => { isDown = true; lastX = e.clientX; lastY = e.clientY; });
+    renderer.domElement.addEventListener('pointerup', () => { isDown = false; });
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (!isDown) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      yaw += dx * 0.005;
+      pitch += dy * 0.005;
+      pitch = Math.max(-1.2, Math.min(1.2, pitch));
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const r = 3.0;
+      camera.position.x = r * Math.cos(pitch) * Math.sin(yaw);
+      camera.position.y = r * Math.sin(pitch) + 0.4;
+      camera.position.z = r * Math.cos(pitch) * Math.cos(yaw);
+      camera.lookAt(0, 0, 0);
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
+
